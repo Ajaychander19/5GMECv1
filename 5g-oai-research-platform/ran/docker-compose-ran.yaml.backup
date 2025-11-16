@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+
+  # =====================================================================
+  # OAI gNB (5G Base Station)
+  # Purpose: Radio access network, handles UE connections
+  # =====================================================================
+  oai-gnb:
+    container_name: oai-gnb
+    image: oaisoftwarealliance/oai-gnb:2024.w40
+    platform: linux/amd64
+    privileged: true
+    # Mount configuration files (we'll create these next)
+    volumes:
+      # Log directory for gNB output
+      - ./logs:/opt/oai-gnb/logs
+    environment:
+      # ===== NETWORK CONFIGURATION =====
+      # Use Standalone (SA) mode with TDD (Time Division Duplex)
+      USE_SA_TDD_MONO: 'yes'
+      
+      # gNB name
+      GNBNAME: 'oai-gnb'
+      
+      # Number of cores to use
+      NBCORES: '4'
+      
+      # Number of simulated UEs to support
+      NB_UE: '4'
+      
+      # Time synchronization
+      SYNC_REF: 'internal'
+      
+      # ===== PLMN (Network Identification) =====
+      # MCC = Mobile Country Code (208 = France for testing)
+      MCC: '208'
+      # MNC = Mobile Network Code (95 = test)
+      MNC: '95'
+      # Tracking Area Code
+      TAC: '1'
+      
+      # ===== NETWORK SLICING (S-NSSAI) =====
+      # Slice 1: eMBB (Enhanced Mobile Broadband)
+      NSSAI_SST_0: '1'
+      NSSAI_SD_0: '0xffffff'
+      # Slice 2: URLLC (Ultra Reliable Low Latency)
+      NSSAI_SST_1: '2'
+      NSSAI_SD_1: '0x112233'
+      
+      # ===== E2 AGENT CONFIGURATION =====
+      # Enable E2 agent (for future RIC connection)
+      ENABLE_E2: 'no'  # Set to 'yes' if you add FlexRIC later
+      E2_AGENT_IPADDR: 'oai-gnb'
+      E2_AGENT_PORT: '36422'
+      
+      # RIC connection (for when E2 is enabled)
+      # RIC_IP_ADDRESS: '172.33.0.10'  # Uncomment if using RIC
+      # RIC_PORT: '36422'
+      
+      # ===== INTERFACES =====
+      # Interface names and IP addresses
+      NGA_IF_NAME: 'eth0'
+      NGA_IP_ADDRESS: '172.31.0.10'
+      NGU_IF_NAME: 'eth0'
+      NGU_IP_ADDRESS: '172.31.0.10'
+      
+      # ===== CORE NETWORK CONNECTIVITY =====
+      # AMF (Access and Mobility Management Function) address
+      AMF_IP_ADDRESS: '172.30.0.100'
+      
+      # ===== NFAPI PARAMETERS =====
+      # VNF = Virtual Network Function (containerized)
+      NFAPI_MODE: 'VNF'
+      
+      # RAN operating mode (FR1 = Frequency Range 1, 0-6 GHz)
+      RAN_FRAME_TYPE: 'FDD'
+      
+    ports:
+      # NGAP port (gNB to AMF communication - SCTP)
+      - "38412:38412/sctp"
+      # Optional: Debug/management ports
+      - "9091:9091/tcp"
+    
+    networks:
+      # Connect to RAN network
+      5g_ran_net:
+        ipv4_address: 172.31.0.10
+      # Also connect to core network for N2 interface (NGAP)
+      5g_core_net:
+    
+    depends_on:
+      # Wait for core network to be ready
+      - oai-amf-wait
+    
+    labels:
+      project: 5g-oai-research-platform
+      component: ran
+      service: gnb
+    
+    # gNB startup can be slow (60+ seconds)
+    healthcheck:
+      test: ["CMD", "ps", "aux"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =====================================================================
+  # Dummy service to ensure core network is up before starting gNB
+  # =====================================================================
+  oai-amf-wait:
+    container_name: oai-amf-check
+    image: busybox:latest
+    networks:
+      5g_core_net:
+    command: sh -c "echo 'Waiting for core network...' && sleep 5"
+    labels:
+      project: 5g-oai-research-platform
+      component: ran
+      service: helper
+
+# =====================================================================
+# Networks
+# =====================================================================
+networks:
+  5g_ran_net:
+    external: true
+    name: 5g-ran-net
+  
+  5g_core_net:
+    external: true
+    name: 5g-core-net
+

@@ -1,0 +1,300 @@
+version: '3.8'
+
+services:
+
+  # =====================================================================
+  # MySQL Database - REQUIRED for all core network functions
+  # =====================================================================
+  mysql:
+    container_name: oai-mysql
+    image: mysql:8.0
+    platform: linux/amd64
+    volumes:
+      # Mount the database schema we created in Step 2
+      - ./database/oai_db.sql:/docker-entrypoint-initdb.d/oai_db.sql
+      # Persist database data
+      - mysql_data:/var/lib/mysql
+    environment:
+      # MySQL root password
+      MYSQL_ROOT_PASSWORD: linux
+      # Create database
+      MYSQL_DATABASE: oai_db
+      # Create user for OAI
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
+    healthcheck:
+      # Check if MySQL is ready
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.10
+    labels:
+      project: 5g-oai-research-platform
+      component: core
+      service: database
+
+  # =====================================================================
+  # NRF (Network Function Repository)
+  # Purpose: Registers all NFs, provides service discovery
+  # =====================================================================
+  oai-nrf:
+    container_name: oai-nrf
+    image: oaisoftwarealliance/oai-nrf:v2.1.0
+    platform: linux/amd64
+    environment:
+      NRF_INTERFACE_NAME_FOR_SBI: eth0
+      NRF_INTERFACE_PORT_FOR_SBI: 8080
+      NRF_API_VERSION: v1
+      INSTANCE: 0
+      PID_DIRECTORY: /var/run
+    ports:
+      - "8080:8080/tcp"
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.20
+    depends_on:
+      mysql:
+        condition: service_healthy
+    labels:
+      project: 5g-oai-research-platform
+      component: core
+      service: nrf
+
+  # =====================================================================
+  # UDR (Unified Data Repository)
+  # Purpose: Stores subscriber data (credentials, profiles)
+  # =====================================================================
+  oai-udr:
+    container_name: oai-udr
+    image: oaisoftwarealliance/oai-udr:v2.1.0
+    platform: linux/amd64
+    environment:
+      UDR_INTERFACE_NAME_FOR_NUDR: eth0
+      UDR_INTERFACE_PORT_FOR_NUDR: 8080
+      MYSQL_IPV4_ADDRESS: 172.30.0.10
+      MYSQL_USER: test
+      MYSQL_PASS: test
+      MYSQL_DB: oai_db
+      NRF_IPV4_ADDRESS: 172.30.0.20
+      NRF_PORT: 8080
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.30
+    depends_on:
+      - mysql
+      - oai-nrf
+    labels:
+      project: 5g-oai-research-platform
+      component: core
+      service: udr
+
+  # =====================================================================
+  # UDM (User Data Management)
+  # Purpose: Handles subscriber authentication and authorization
+  # =====================================================================
+  oai-udm:
+    container_name: oai-udm
+    image: oaisoftwarealliance/oai-udm:v2.1.0
+    platform: linux/amd64
+    environment:
+      UDM_INTERFACE_NAME_FOR_SBI: eth0
+      UDM_INTERFACE_PORT_FOR_SBI: 8080
+      UDR_IPV4_ADDRESS: 172.30.0.30
+      UDR_PORT: 8080
+      NRF_IPV4_ADDRESS: 172.30.0.20
+      NRF_PORT: 8080
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.40
+    depends_on:
+      - oai-udr
+    labels:
+      project: 5g-oai-research-platform
+      component: core
+      service: udm
+
+  # =====================================================================
+  # AUSF (Authentication Server Function)
+  # Purpose: Performs UE authentication (EAP-AKA)
+  # =====================================================================
+  oai-ausf:
+    container_name: oai-ausf
+    image: oaisoftwarealliance/oai-ausf:v2.1.0
+    platform: linux/amd64
+    environment:
+      AUSF_INTERFACE_NAME_FOR_SBI: eth0
+      AUSF_INTERFACE_PORT_FOR_SBI: 8080
+      UDM_IPV4_ADDRESS: 172.30.0.40
+      UDM_PORT: 8080
+      NRF_IPV4_ADDRESS: 172.30.0.20
+      NRF_PORT: 8080
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.50
+    depends_on:
+      - oai-udm
+    labels:
+      project: 5g-oai-research-platform
+      component: core
+      service: ausf
+
+  # =====================================================================
+  # AMF (Access and Mobility Management Function)
+  # Purpose: UE attachment, registration, mobility management
+  # =====================================================================
+  oai-amf:
+    container_name: oai-amf
+    image: oaisoftwarealliance/oai-amf:v2.1.0
+    platform: linux/amd64
+    environment:
+      # Network Configuration
+      MCC: '208'
+      MNC: '95'
+      REGION_ID: '128'
+      AMF_SET_ID: '1'
+      # GUAMI (Globally Unique AMF Identifier)
+      SERVED_GUAMI_MCC_0: '208'
+      SERVED_GUAMI_MNC_0: '95'
+      SERVED_GUAMI_REGION_ID_0: '128'
+      SERVED_GUAMI_AMF_SET_ID_0: '1'
+      # PLMN Support
+      PLMN_SUPPORT_MCC: '208'
+      PLMN_SUPPORT_MNC: '95'
+      PLMN_SUPPORT_TAC: '0x0001'
+      # Slices
+      SST_0: '1'
+      SD_0: '0xffffff'
+      # Interfaces
+      AMF_INTERFACE_NAME_FOR_NGAP: eth0
+      AMF_INTERFACE_NAME_FOR_N11: eth0
+      # SMF Address (N11 interface)
+      SMF_IPV4_ADDR_0: 172.30.0.60
+      SMF_FQDN_0: oai-smf
+      # AUSF Address
+      AUSF_IPV4_ADDRESS: 172.30.0.50
+      AUSF_PORT: 8080
+      # NRF Address
+      NRF_IPV4_ADDRESS: 172.30.0.20
+      NRF_PORT: 8080
+      # NF Registration
+      NF_REGISTRATION: 'yes'
+      USE_FQDN_DNS: 'no'
+    ports:
+      - "38412:38412/sctp"
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.100
+    depends_on:
+      - oai-ausf
+    labels:
+      project: 5g-oai-research-platform
+      component: core
+      service: amf
+
+  # =====================================================================
+  # SMF (Session Management Function)
+  # Purpose: PDU session establishment, QoS management
+  # =====================================================================
+  oai-smf:
+    container_name: oai-smf
+    image: oaisoftwarealliance/oai-smf:v2.1.0
+    platform: linux/amd64
+    environment:
+      # Interfaces
+      SMF_INTERFACE_NAME_FOR_N4: eth0
+      SMF_INTERFACE_NAME_FOR_SBI: eth0
+      SMF_INTERFACE_PORT_FOR_SBI: 8080
+      SMF_INTERFACE_HTTP2_PORT_FOR_SBI: 9090
+      # DNS
+      DEFAULT_DNS_IPV4_ADDRESS: 8.8.8.8
+      DEFAULT_DNS_SEC_IPV4_ADDRESS: 8.8.4.4
+      # AMF Address (N11)
+      AMF_IPV4_ADDRESS: 172.30.0.100
+      AMF_PORT: 8080
+      # UDM Address
+      UDM_IPV4_ADDRESS: 172.30.0.40
+      UDM_PORT: 8080
+      # NRF Address
+      NRF_IPV4_ADDRESS: 172.30.0.20
+      NRF_PORT: 8080
+      # UPF Address (N4)
+      UPF_IPV4_ADDRESS: 172.30.0.70
+      UPF_FQDN_0: oai-upf
+      # NF Registration
+      NF_REGISTRATION: 'yes'
+      USE_FQDN_DNS: 'no'
+      # DNN Configuration (Slice 1: eMBB)
+      DNN_NI0: 'oai'
+      TYPE0: 'IPv4'
+      DNN_RANGE0: '12.1.1.0/24'
+      NSSAI_SST0: '1'
+      NSSAI_SD0: '0xffffff'
+      SESSION_AMBR_UL0: '200Mbps'
+      SESSION_AMBR_DL0: '400Mbps'
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.60
+    depends_on:
+      - oai-amf
+    labels:
+      project: 5g-oai-research-platform
+      component: core
+      service: smf
+
+  # =====================================================================
+  # UPF (User Plane Function) - CENTRAL
+  # Purpose: Packet forwarding, traffic steering
+  # =====================================================================
+  oai-upf:
+    container_name: oai-upf
+    image: oaisoftwarealliance/oai-upf:v2.1.0
+    platform: linux/amd64
+    privileged: true
+    environment:
+      # UPF Instance
+      NWINSTANCE: '1'
+      GW_ID: '1'
+      MNC03: '95'
+      MCC: '208'
+      REALM: '3gpp.org'
+      PID_DIRECTORY: /var/run
+      # Interface Setup
+      INTERFACES_SETUP: 'yes'
+      INTERFACE_NAME: eth0
+      INTERFACE_N3_IP_ADDR: 172.30.0.70
+      INTERFACE_N6_IP_ADDR: 172.30.0.71
+      # NF Registration
+      NF_REGISTRATION: 'yes'
+      NRF_IPV4_ADDRESS: 172.30.0.20
+      NRF_PORT: 8080
+      # Slices
+      NSSAI_SST_0: '1'
+      NSSAI_SD_0: '0xffffff'
+      DNN_0: 'oai'
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.70
+    depends_on:
+      - oai-nrf
+    labels:
+      project: 5g-oai-research-platform
+      component: core
+      service: upf
+
+# =====================================================================
+# Networks
+# =====================================================================
+networks:
+  5g_core_net:
+    external: true
+    name: 5g-core-net
+
+# =====================================================================
+# Volumes
+# =====================================================================
+volumes:
+  mysql_data:
+    driver: local

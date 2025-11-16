@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Edge UPF (local breakout for MEC traffic)
+  oai-upf-edge:
+    container_name: oai-upf-edge
+    image: oaisoftwarealliance/oai-upf:v2.1.0
+    privileged: true
+    environment:
+      NWINSTANCE: 2
+      GW_ID: 2
+      MNC03: '095'
+      MCC: '208'
+      REALM: 3gpp.org
+      INTERFACES_SETUP: 'yes'
+      INTERFACE_NAME: eth0
+      INTERFACE_N3_IP_ADDR: 172.32.0.10
+      INTERFACE_N6_IP_ADDR: 172.32.0.11
+      NF_REGISTRATION: 'yes'
+      NRF_IPV4_ADDRESS: 172.30.0.20
+      NRF_PORT: 8080
+      NSSAI_SST_0: 2
+      NSSAI_SD_0: 0x000001
+      DNN_0: edge
+    networks:
+      5g_mec_net:
+        ipv4_address: 172.32.0.10
+      5g_core_net:
+
+  # Example MEC App: Video streaming cache
+  mec-app-cache:
+    container_name: mec-app-cache
+    image: nginx:alpine
+    volumes:
+      - ./mec-apps/cache:/usr/share/nginx/html:ro
+    networks:
+      5g_mec_net:
+        ipv4_address: 172.32.0.20
+
+  # Example MEC App: Edge analytics/AI
+  mec-app-analytics:
+    container_name: mec-app-analytics
+    image: redis:alpine
+    networks:
+      5g_mec_net:
+        ipv4_address: 172.32.0.30
+
+networks:
+  5g_mec_net:
+    external: true
+    name: 5g-mec-net
+  5g_core_net:
+    external: true
+    name: 5g-core-net

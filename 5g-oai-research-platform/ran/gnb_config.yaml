@@ -1,0 +1,28 @@
+gNBs:
+  - gnb_id: 1
+    gnb_name: "oai-gnb"
+    mcc: 208
+    mnc: 95
+    mnc_length: 2
+    tac: 1
+    amf_ip_address: "172.30.0.100"
+    amf_port: 38412
+    nssai_sst0: 1
+    nssai_sd0: "0xffffff"
+    nssai_sst1: 2
+    nssai_sd1: "0x112233"
+    nr_cell_list:
+      - cell_type: "nr_macro"
+        cell_id: 1
+        band: 78
+        dl_absoluteFrequencyPointA: 641280
+        dl_frequencyBand: 78
+        dl_gridOpeningOffsetSSB: 0
+        dl_initialDownlinkBWP_common_scs_SpecificCarrierList:
+          - offsetToCarrier: 0
+            subcarrierSpacing: 30
+            carrierBandwidth: 106
+        ul_initialUplinkBWP_common_scs_SpecificCarrierList:
+          - offsetToCarrier: 0
+            subcarrierSpacing: 30
+            carrierBandwidth: 106

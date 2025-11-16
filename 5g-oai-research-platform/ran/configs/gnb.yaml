@@ -1,0 +1,57 @@
+gNBs:
+  - gnb_id: 1
+    gnb_name: "oai-gnb"
+    cell_type: "nr_macro_indoor"
+    nr_operating_mode: "sa"
+    
+    # PLMN
+    mcc: 208
+    mnc: 95
+    mnc_length: 2
+    tac: 1
+    nssai_sst0: 1
+    nssai_sd0: "0xffffff"
+    
+    # AMF Connection
+    amf:
+      amf_ip_address: "172.30.0.100"
+      amf_port: 38412
+    
+    # NR Cell Configuration
+    nr_cell_list:
+      - cell_type: "nr_macro"
+        cell_id: 1
+        band: 78
+        dl_absoluteFrequencyPointA: 641280
+        dl_frequencyBand: 78
+        dl_gridOpeningOffsetSSB: 0
+        
+        # DL Initial Downlink BWP
+        dl_initialDownlinkBWP_common_cp_AdditionalPDCP_Parameters: null
+        dl_initialDownlinkBWP_common_pdcch_ConfigCommon: null
+        dl_initialDownlinkBWP_common_pdsch_ConfigCommon: null
+        dl_initialDownlinkBWP_common_rach_ConfigCommon: null
+        
+        dl_initialDownlinkBWP_common_scs_SpecificCarrierList:
+          - offsetToCarrier: 0
+            subcarrierSpacing: 30
+            carrierBandwidth: 106
+        
+        # UL Initial Uplink BWP
+        ul_initialUplinkBWP_common_pusch_ConfigCommon: null
+        ul_initialUplinkBWP_common_rach_ConfigCommon: null
+        
+        ul_initialUplinkBWP_common_scs_SpecificCarrierList:
+          - offsetToCarrier: 0
+            subcarrierSpacing: 30
+            carrierBandwidth: 106
+        
+        # PDCCH and PDSCH
+        pdcch_ConfigCommon: null
+        pdsch_TimeDomainAllocationList: null
+        pusch_TimeDomainAllocationList: null
+        pucch_ConfigCommon: null
+        
+        # UL Power Control
+        uplinkPowerControl: null
+

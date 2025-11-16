@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+
+  oai-gnb:
+    container_name: oai-gnb
+    image: oaisoftwarealliance/oai-gnb:2024.w40
+    platform: linux/amd64
+    privileged: true
+    volumes:
+      # Mount configuration file
+      - ./configs/gnb.yaml:/opt/oai-gnb/etc/gnb.yaml:ro
+      # Mount logs directory
+      - ./logs:/opt/oai-gnb/logs
+    environment:
+      USE_SA_TDD_MONO: 'yes'
+      GNBNAME: 'oai-gnb'
+      NBCORES: '4'
+      NB_UE: '4'
+      SYNC_REF: 'internal'
+      MCC: '208'
+      MNC: '95'
+      TAC: '1'
+      NSSAI_SST_0: '1'
+      NSSAI_SD_0: '0xffffff'
+      NSSAI_SST_1: '2'
+      NSSAI_SD_1: '0x112233'
+      ENABLE_E2: 'no'
+      E2_AGENT_IPADDR: 'oai-gnb'
+      E2_AGENT_PORT: '36422'
+      NGA_IF_NAME: 'eth0'
+      NGA_IP_ADDRESS: '172.31.0.10'
+      NGU_IF_NAME: 'eth0'
+      NGU_IP_ADDRESS: '172.31.0.10'
+      AMF_IP_ADDRESS: '172.30.0.100'
+      NFAPI_MODE: 'VNF'
+    ports:
+      - "9091:9091/tcp"
+    networks:
+      5g_ran_net:
+        ipv4_address: 172.31.0.10
+      5g_core_net:
+    depends_on:
+      - oai-amf-wait
+    labels:
+      project: 5g-oai-research-platform
+      component: ran
+      service: gnb
+    healthcheck:
+      test: ["CMD", "ps", "aux"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  oai-amf-wait:
+    container_name: oai-amf-check
+    image: busybox:latest
+    networks:
+      5g_core_net:
+    command: sh -c "echo 'Waiting for core network...' && sleep 5"
+    labels:
+      project: 5g-oai-research-platform
+      component: ran
+      service: helper
+
+networks:
+  5g_ran_net:
+    external: true
+    name: 5g-ran-net
+  5g_core_net:
+    external: true
+    name: 5g-core-net
+
