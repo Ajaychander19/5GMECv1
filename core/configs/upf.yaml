@@ -1,0 +1,51 @@
+log_level: debug
+
+register_nf:
+  general:
+    nf_type: UPF
+    nf_name: OAI-UPF
+
+http_version: 2
+
+nrf:
+  host: 172.30.0.20
+  port: 8080
+
+smf:
+  host: 172.30.0.50
+  port: 8080
+
+upf:
+  support_features:
+    enable_bpf_datapath: no
+    enable_snat: yes
+  remote_n6_gw: 172.30.0.1
+  upf_info:
+    sNssaiUpfInfoList:
+      - sNssai: "1:0xffffff"
+        dnnUpfInfoList:
+          - dnn: "oai"
+  interfaces:
+    n3:
+      host: 172.30.0.70
+      port: 2152
+    n4:
+      host: 172.30.0.70
+      port: 8805
+    n6:
+      host: 172.30.0.70
+
+dnns:
+  - dnn: "oai"
+    pdu_session_type: "IPV4"
+    ipv4_pool: "12.1.1.0/24"
+    ipv6_pool: "2001:1:2::/64"
+
+database:
+  host: 172.30.0.30
+  user: oai_user
+  type: mysql
+  password: oai_password
+  database_name: oai_db
+  generate_random: true
+  connection_timeout: 300

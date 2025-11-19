@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+
+  # =====================================================================
+  # OAI NR-UE (5G User Equipment Simulator)
+  # Purpose: Simulates a 5G phone/device connecting to gNB
+  # =====================================================================
+  oai-nr-ue:
+    container_name: oai-nr-ue
+    image: oaisoftwarealliance/oai-nr-ue:2024.w40
+    platform: linux/amd64
+    privileged: true
+    # Mount configuration and logs
+    volumes:
+      # Log directory for UE output
+      - ./logs/ue:/opt/oai-nr-ue/logs
+    environment:
+      # ===== UE IDENTIFICATION =====
+      # IMSI = International Mobile Subscriber Identity
+      # Format: MCC (208) + MNC (95) + Subscription ID (000000001)
+      # This must match a subscriber in the database (core/database/oai_db.sql)
+      IMSI: '208950000000001'
+      
+      # ===== AUTHENTICATION CREDENTIALS =====
+      # These match the test subscriber in oai_db.sql
+      # Permanent Key (Ki)
+      KEY: '0C0A34601D4F07677303652C0624'
+      
+      # Operator's Secret Key (OPc)
+      OPC: '63BFA50EE6523365FF14C1F45F88737D'
+      
+      # ===== UE CAPABILITIES =====
+      # Enable Standalone (SA) mode
+      USE_SA_TDD_MONO: 'yes'
+      
+      # UE ID (for internal tracking when multiple UEs)
+      UEID: '1'
+      
+      # ===== NETWORK SLICE SELECTION =====
+      # SST = Slice/Service Type (1 = eMBB, 2 = URLLC, etc.)
+      NSSAI_SST: '1'
+      # SD = Slice Differentiator (0xffffff = default for SST=1)
+      NSSAI_SD: '0xffffff'
+      
+      # ===== DNN CONFIGURATION =====
+      # DNN = Data Network Name (which network slice to connect to)
+      # This matches the DNN in core network SMF configuration
+      DNN: 'oai'
+      
+      # Registered DNN (for initial registration)
+      REGISTERED_DNN: 'oai'
+      
+      # ===== CORE NETWORK CONNECTION =====
+      # Optional: NRF IP (if you want direct NRF discovery)
+      # Leave empty to use gNB-provided configuration
+      # NRF_IPADDR: '172.30.0.20'
+      
+      # ===== LOGGING =====
+      # Log level: DEBUG, INFO, WARNING, ERROR
+      LOG_LEVEL: 'INFO'
+      
+      # ===== PDU SESSION CONFIGURATION =====
+      # PDU Session Type (IPv4, IPv6, IPv4v6)
+      PDU_SESSION_TYPE: 'IPv4'
+      
+      # SSC Mode (0 = SSC mode 0, 1 = SSC mode 1, 2 = SSC mode 2, 3 = SSC mode 3)
+      SSC_MODE: '1'
+      
+      # ===== OPTIONAL: UE BEHAVIOR =====
+      # Enable registration (default: yes)
+      REGISTRATION: 'yes'
+      
+      # Enable PDU session establishment (default: yes)
+      ESTABLISH_PDU_SESSION: 'yes'
+      
+      # Time to wait before attempting registration (milliseconds)
+      REGISTRATION_DELAY: '1000'
+    
+    # Map logs directory from host
+    stdin_open: true
+    tty: true
+    
+    networks:
+      # Connect to RAN network
+      5g_ran_net:
+        ipv4_address: 172.31.0.200
+    
+    depends_on:
+      # Wait for gNB to be ready
+      - oai-gnb
+    
+    labels:
+      project: 5g-oai-research-platform
+      component: ran
+      service: ue
+    
+    # UE startup is fast (10-20 seconds)
+    healthcheck:
+      test: ["CMD", "ps", "aux"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+# =====================================================================
+# Networks
+# =====================================================================
+networks:
+  5g_ran_net:
+    external: true
+    name: 5g-ran-net
+

@@ -1,0 +1,25 @@
+# Prometheus Configuration for 5G Research Platform
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: '5g-oai-research-platform'
+
+# Alerting rules (optional)
+alerting:
+  alertmanagers: []
+
+# Scrape configs
+scrape_configs:
+  # Self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Add metrics sources here as you expand
+  # Example (later):
+  # - job_name: 'oai-gnb'
+  #   static_configs:
+  #     - targets: ['172.31.0.10:9091']
+

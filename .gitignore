@@ -1,0 +1,33 @@
+# Docker artifacts
+.dockerignore
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large files
+*.pcap
+*.iqs
+*.bin
+
+# Sensitive data
+.env.local
+secrets/
+*.key
+*.pem

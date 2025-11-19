@@ -1,0 +1,169 @@
+-- =====================================================================
+-- OAI 5G Core Network Database Schema (Official - ETSI 3GPP Compliant)
+-- =====================================================================
+
+CREATE DATABASE IF NOT EXISTS `oai_db`;
+USE `oai_db`;
+
+-- =====================================================================
+-- Table: AuthenticationSubscription
+-- Purpose: Stores authentication credentials for users (IMSI, keys, OPc)
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS `AuthenticationSubscription` (
+  `ueid` varchar(15) NOT NULL,
+  `authenticationMethod` varchar(10) NOT NULL,
+  `encPermanentKey` varchar(32) NOT NULL,
+  `protectionParameterId` varchar(32) DEFAULT NULL,
+  `sequenceNumber` varchar(10) DEFAULT NULL,
+  `authenticationManagementField` varchar(4) DEFAULT NULL,
+  `algorithmIdentifier` varchar(10) DEFAULT NULL,
+  `confidentialityKey` varchar(32) DEFAULT NULL,
+  `integrityKey` varchar(32) DEFAULT NULL,
+  `eapMethod` varchar(20) DEFAULT NULL,
+  `resynchronizationInfo` varchar(32) DEFAULT NULL,
+  `salt` varchar(32) DEFAULT NULL,
+  PRIMARY KEY (`ueid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- =====================================================================
+-- Table: AccessAndMobilitySubscriptionData
+-- Purpose: Stores subscriber's mobility and access policies
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS `AccessAndMobilitySubscriptionData` (
+  `ueid` varchar(15) NOT NULL,
+  `gpsi` varchar(15) DEFAULT NULL,
+  `subscribedUeAmbr` varchar(50) DEFAULT NULL,
+  `nssai` json DEFAULT NULL,
+  `rfspIndex` int DEFAULT NULL,
+  PRIMARY KEY (`ueid`),
+  CONSTRAINT `fk_auth_sub` FOREIGN KEY (`ueid`) REFERENCES `AuthenticationSubscription` (`ueid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- =====================================================================
+-- Table: SessionManagementSubscriptionData
+-- Purpose: Stores session management policies per slice/DNN
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS `SessionManagementSubscriptionData` (
+  `ueid` varchar(15) NOT NULL,
+  `singleNssai` json NOT NULL,
+  `dnnConfigurations` json DEFAULT NULL,
+  PRIMARY KEY (`ueid`, `singleNssai`(50)),
+  CONSTRAINT `fk_access_mobility_sub` FOREIGN KEY (`ueid`) REFERENCES `AccessAndMobilitySubscriptionData` (`ueid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- =====================================================================
+-- Table: SmfSelectionSubscriptionData
+-- Purpose: Stores SMF selection policies
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS `SmfSelectionSubscriptionData` (
+  `ueid` varchar(15) NOT NULL,
+  `singleNssai` json NOT NULL,
+  `smfInfo` json DEFAULT NULL,
+  PRIMARY KEY (`ueid`, `singleNssai`(50)),
+  CONSTRAINT `fk_smf_selection` FOREIGN KEY (`ueid`) REFERENCES `AccessAndMobilitySubscriptionData` (`ueid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- =====================================================================
+-- TEST SUBSCRIBER DATA (IMSI: 208950000000001)
+-- This is a test subscriber for development/research
+-- MCC=208, MNC=95 (France test network)
+-- =====================================================================
+
+-- Authentication Data
+INSERT INTO `AuthenticationSubscription` VALUES 
+(
+  '208950000000001',
+  'EAP-AKA',
+  '0C0A34601D4F07677303652C0624',
+  '0C0A34601D4F07677303652C0624',
+  '000000000001',
+  '8004',
+  '70',
+  '63BFA50EE6523365FF14C1F45F88737D',
+  '2A145DFF952E63D49F0F1F0771D51179',
+  NULL,
+  NULL,
+  '0C0A34601D4F07677303652C0624'
+);
+
+-- Access & Mobility Data (2 slices: eMBB and URLLC)
+INSERT INTO `AccessAndMobilitySubscriptionData` VALUES 
+(
+  '208950000000001',
+  '111111111111',
+  '{"uplink":"1000000000","downlink":"2000000000"}',
+  '[
+    {"sst":1,"sd":0xffffff},
+    {"sst":2,"sd":0x112233}
+  ]',
+  1
+);
+
+-- Session Management - Slice 1 (eMBB - Enhanced Mobile Broadband)
+INSERT INTO `SessionManagementSubscriptionData` VALUES 
+(
+  '208950000000001',
+  '{"sst":1,"sd":0xffffff}',
+  '{
+    "oai":{
+      "pduSessionTypes":"IPV4",
+      "sscModes":"0,1",
+      "5gQosProfile":{
+        "5qi":5,
+        "arp":{"priorityLevel":9,"preemptCap":"NOT_PREEMPT","preemptVuln":"PREEMPTIBLE"},
+        "priorityLevel":9
+      },
+      "sessionAmbr":{"uplink":"1000000000","downlink":"2000000000"}
+    }
+  }'
+);
+
+-- Session Management - Slice 2 (URLLC - Ultra Reliable Low Latency)
+INSERT INTO `SessionManagementSubscriptionData` VALUES 
+(
+  '208950000000001',
+  '{"sst":2,"sd":0x112233}',
+  '{
+    "edge":{
+      "pduSessionTypes":"IPV4",
+      "sscModes":"0,1",
+      "5gQosProfile":{
+        "5qi":1,
+        "arp":{"priorityLevel":1,"preemptCap":"PREEMPT","preemptVuln":"NOT_PREEMPTIBLE"},
+        "priorityLevel":1
+      },
+      "sessionAmbr":{"uplink":"200000000","downlink":"500000000"}
+    }
+  }'
+);
+
+-- SMF Selection Data
+INSERT INTO `SmfSelectionSubscriptionData` VALUES 
+(
+  '208950000000001',
+  '{"sst":1,"sd":0xffffff}',
+  '{"smfInfo":[{"plmnId":{"mcc":"208","mnc":"95"}}]}'
+),
+(
+  '208950000000001',
+  '{"sst":2,"sd":0x112233}',
+  '{"smfInfo":[{"plmnId":{"mcc":"208","mnc":"95"}}]}'
+);
+
+-- =====================================================================
+-- ADD MORE TEST SUBSCRIBERS HERE (if needed for experiments)
+-- Uncomment and modify as needed
+-- =====================================================================
+
+/*
+-- Example: Second Test Subscriber (IMSI: 208950000000002)
+INSERT INTO `AuthenticationSubscription` VALUES 
+('208950000000002', 'EAP-AKA', '0C0A34601D4F07677303652C0624', ...);
+
+INSERT INTO `AccessAndMobilitySubscriptionData` VALUES 
+('208950000000002', '111111111112', ...);
+*/
+
+-- =====================================================================
+-- END OF DATABASE INITIALIZATION SCRIPT
+-- =====================================================================

@@ -1,0 +1,258 @@
+version: '3.8'
+
+services:
+
+  # =====================================================================
+  # InfluxDB - Time Series Database for Metrics
+  # Purpose: Store and query RAN/network metrics collected from experiments
+  # =====================================================================
+  influxdb:
+    container_name: influxdb-metrics
+    image: influxdb:latest
+    platform: linux/amd64
+    environment:
+      # InfluxDB v2.x configuration
+      INFLUXDB_DB: metrics
+      INFLUXDB_ADMIN_USER: admin
+      INFLUXDB_ADMIN_PASSWORD: admin123
+      INFLUXDB_HTTP_AUTH_ENABLED: 'true'
+      INFLUXDB_REPORTING_DISABLED: 'false'
+    ports:
+      # InfluxDB HTTP API port
+      - "8086:8086/tcp"
+    volumes:
+      # Persist database data
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      5g_mec_net:
+        ipv4_address: 172.32.0.30
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      project: 5g-oai-research-platform
+      component: mec
+      service: metrics-db
+
+  # =====================================================================
+  # Redis - In-Memory Data Store
+  # Purpose: Cache, session storage, metrics queuing for MEC apps
+  # =====================================================================
+  redis-edge:
+    container_name: redis-edge
+    image: redis:alpine
+    platform: linux/amd64
+    ports:
+      # Redis default port
+      - "6379:6379/tcp"
+    volumes:
+      # Persist Redis data
+      - redis_data:/data
+    networks:
+      5g_mec_net:
+        ipv4_address: 172.32.0.40
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      project: 5g-oai-research-platform
+      component: mec
+      service: cache
+
+  # =====================================================================
+  # Edge UPF (User Plane Function) - Traffic Breakout
+  # Purpose: Local data offloading for edge applications
+  # =====================================================================
+  oai-upf-edge:
+    container_name: oai-upf-edge
+    image: oaisoftwarealliance/oai-upf:v2.1.0
+    platform: linux/amd64
+    privileged: true
+    environment:
+      # ===== UPF INSTANCE CONFIGURATION =====
+      # This is a second UPF instance (first one in core network)
+      NWINSTANCE: '2'
+      GW_ID: '2'
+      MNC03: '95'
+      MCC: '208'
+      REALM: '3gpp.org'
+      PID_DIRECTORY: /var/run
+      
+      # ===== INTERFACE SETUP =====
+      INTERFACES_SETUP: 'yes'
+      INTERFACE_NAME: eth0
+      # N3 interface (from gNB/RAN side)
+      INTERFACE_N3_IP_ADDR: 172.32.0.11
+      # N6 interface (to edge applications/internet)
+      INTERFACE_N6_IP_ADDR: 172.32.0.12
+      
+      # ===== NF REGISTRATION =====
+      # Register with NRF so SMF can discover this UPF
+      NF_REGISTRATION: 'yes'
+      NRF_IPV4_ADDRESS: 172.30.0.20
+      NRF_PORT: 8080
+      
+      # ===== NETWORK SLICING =====
+      # This edge UPF handles Slice 2 (URLLC - low latency)
+      NSSAI_SST_0: '2'
+      NSSAI_SD_0: '0x112233'
+      # DNN for edge slice
+      DNN_0: 'edge'
+    
+    networks:
+      # Connect to MEC network
+      5g_mec_net:
+        ipv4_address: 172.32.0.11
+      # Also connect to core network for UPF communication
+      5g_core_net:
+    
+    labels:
+      project: 5g-oai-research-platform
+      component: mec
+      service: upf-edge
+    
+    healthcheck:
+      test: ["CMD", "ps", "aux"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =====================================================================
+  # Nginx - Edge Caching Service
+  # Purpose: Cache web content locally at the edge
+  # =====================================================================
+  mec-app-cache:
+    container_name: mec-app-cache
+    image: nginx:alpine
+    platform: linux/amd64
+    ports:
+      # Nginx HTTP port (accessible to edge users)
+      - "8000:80/tcp"
+    volumes:
+      # Serve cached content from here
+      - ./data/cache:/usr/share/nginx/html:ro
+    networks:
+      5g_mec_net:
+        ipv4_address: 172.32.0.50
+    environment:
+      # App metadata
+      MEC_APP_ID: app-cache-001
+      MEC_APP_DNN: edge
+      MEC_APP_SNSSAI_SST: '2'
+      MEC_APP_SNSSAI_SD: 0x112233
+    labels:
+      project: 5g-oai-research-platform
+      component: mec
+      service: app-cache
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # =====================================================================
+  # PostgreSQL - Research Data Storage
+  # Purpose: Store experiment results, network events, analysis data
+  # =====================================================================
+  postgres-research:
+    container_name: postgres-research
+    image: postgres:15-alpine
+    platform: linux/amd64
+    environment:
+      # PostgreSQL superuser credentials
+      POSTGRES_USER: researcher
+      POSTGRES_PASSWORD: research123
+      # Initial database
+      POSTGRES_DB: 5g_research
+      # Timezone for timestamps
+      TZ: UTC
+    ports:
+      # PostgreSQL port
+      - "5432:5432/tcp"
+    volumes:
+      # Persist database
+      - postgres_data:/var/lib/postgresql/data
+      # Optional: initialization scripts
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+    networks:
+      5g_mec_net:
+        ipv4_address: 172.32.0.60
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+    labels:
+      project: 5g-oai-research-platform
+      component: mec
+      service: research-db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U researcher"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =====================================================================
+  # Prometheus - Metrics Collection & Monitoring (Optional)
+  # Purpose: Scrape and store metrics from exporters
+  # =====================================================================
+  prometheus:
+    container_name: prometheus-monitor
+    image: prometheus:latest
+    platform: linux/amd64
+    ports:
+      # Prometheus web UI and API
+      - "9090:9090/tcp"
+    volumes:
+      # Prometheus configuration
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Store metrics data
+      - prometheus_data:/prometheus
+    networks:
+      5g_mec_net:
+        ipv4_address: 172.32.0.70
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    labels:
+      project: 5g-oai-research-platform
+      component: mec
+      service: monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+# =====================================================================
+# Networks
+# =====================================================================
+networks:
+  5g_mec_net:
+    external: true
+    name: 5g-mec-net
+  
+  5g_core_net:
+    external: true
+    name: 5g-core-net
+
+# =====================================================================
+# Volumes (Persistent Storage)
+# =====================================================================
+volumes:
+  influxdb_data:
+    driver: local
+  
+  redis_data:
+    driver: local
+  
+  postgres_data:
+    driver: local
+  
+  prometheus_data:
+    driver: local
+
