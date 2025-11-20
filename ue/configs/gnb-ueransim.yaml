@@ -1,0 +1,22 @@
+mcc: '208'
+mnc: '95'
+nci: '0x000000010'
+idLength: 32
+tac: 1
+linkIp: 127.0.0.1
+ngapIp: 172.30.0.132
+gtpIp: 172.30.0.132
+gtpAdvertiseIp: 172.30.0.132
+
+# List of AMF IP addresses for N2 interface
+amfConfigs:
+  - address: 172.30.0.100
+    port: 38412
+
+# List of supported S-NSSAIs by this gNB
+slices:
+  - sst: 1
+    sd: 0xffffff
+
+# Indicates whether or not SCTP stream number errors should be ignored.
+ignoreStreamIds: true

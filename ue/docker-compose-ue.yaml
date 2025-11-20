@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  oai-ue:
+    image: oaisoftwarealliance/oai-nr-ue:develop
+    container_name: oai-nr-ue
+    privileged: true
+    volumes:
+      - ./configs/nr-ue.yaml:/opt/oai-nr-ue/etc/nr-ue.yaml:ro
+    environment:
+      - RFSIMULATOR=172.30.0.131
+    command: >
+      /opt/oai-nr-ue/bin/nr-uesoftmodem
+      -C 3319680000
+      -r 106
+      --numerology 1
+      --ssb 516
+      --rfsim
+      --rfsimulator.serveraddr 172.30.0.131
+      --rfsimulator.serverport 4043
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.134
+
+networks:
+  5g_core_net:
+    external: true
+    name: 5g-core-net

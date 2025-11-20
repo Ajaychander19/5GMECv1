@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  ueransim-gnb:
+    image: ueransim/ueransim:latest
+    container_name: ueransim-gnb
+    privileged: true
+    volumes:
+      - ./configs/gnb-ueransim.yaml:/ueransim/config/gnb.yaml:ro
+    command: ./nr-gnb -c ./config/gnb.yaml
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.132
+
+  ueransim-ue:
+    image: ueransim/ueransim:latest
+    container_name: ueransim-ue
+    privileged: true
+    depends_on:
+      - ueransim-gnb
+    volumes:
+      - ./configs/ue-ueransim.yaml:/ueransim/config/ue.yaml:ro
+    command: ./nr-ue -c ./config/ue.yaml
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    networks:
+      5g_core_net:
+        ipv4_address: 172.30.0.133
+
+networks:
+  5g_core_net:
+    external: true
+    name: 5g-core-net
